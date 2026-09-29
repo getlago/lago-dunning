@@ -1,0 +1,22 @@
+{
+  "invoices": [
+    { "id": "inv_acme_1042", "number": "LAG-2026-1042", "customerId": "cus_acme", "customerName": "Acme, Inc.", "currency": "USD", "totalAmountCents": 1250000, "remainingAmountCents": 1250000, "paymentStatus": "pending", "issuedAt": "2026-07-20" },
+    { "id": "inv_north_88", "number": "LAG-2026-1088", "customerId": "cus_north", "customerName": "Northstar Labs GmbH", "currency": "USD", "totalAmountCents": 480000, "remainingAmountCents": 480000, "paymentStatus": "pending", "issuedAt": "2026-07-31" },
+    { "id": "inv_orbit_91", "number": "LAG-2026-1091", "customerId": "cus_orbit", "customerName": "Orbit AI Limited", "currency": "EUR", "totalAmountCents": 730000, "remainingAmountCents": 730000, "paymentStatus": "pending", "issuedAt": "2026-08-01" },
+    { "id": "inv_polar_92", "number": "LAG-2026-1092", "customerId": "cus_polar", "customerName": "Polar Systems", "currency": "USD", "totalAmountCents": 480000, "remainingAmountCents": 480000, "paymentStatus": "pending", "issuedAt": "2026-08-01" },
+    { "id": "inv_helios_93", "number": "LAG-2026-1093", "customerId": "cus_helios", "customerName": "Helios Cloud SAS", "currency": "EUR", "totalAmountCents": 300000, "remainingAmountCents": 300000, "paymentStatus": "pending", "issuedAt": "2026-08-02" },
+    { "id": "inv_helios_94", "number": "LAG-2026-1094", "customerId": "cus_helios", "customerName": "Helios Cloud SAS", "currency": "EUR", "totalAmountCents": 425000, "remainingAmountCents": 425000, "paymentStatus": "pending", "issuedAt": "2026-08-03" },
+    { "id": "inv_vector_95", "number": "LAG-2026-1095", "customerId": "cus_vector", "customerName": "VectorDB, Inc.", "currency": "USD", "totalAmountCents": 900000, "remainingAmountCents": 900000, "paymentStatus": "pending", "issuedAt": "2026-08-04" }
+  ],
+  "confirmedIdentities": [
+    { "fingerprint": "known-northstar-bank-account", "customerId": "cus_north", "label": "Northstar operating account" }
+  ],
+  "transfers": [
+    { "provider": "mercury", "accountId": "mercury-main", "providerTransactionId": "m_001", "status": "posted", "direction": "credit", "amountCents": 1250000, "currency": "USD", "bookedAt": "2026-08-05T13:00:00Z", "senderName": "ACME INC", "reference": "Payment LAG 2026 1042", "description": "WIRE INCOMING" },
+    { "provider": "mercury", "accountId": "mercury-main", "providerTransactionId": "m_002", "status": "posted", "direction": "credit", "amountCents": 480000, "currency": "USD", "bookedAt": "2026-08-06T09:00:00Z", "senderName": "NORTH STAR LABORATORIES", "senderAccountFingerprint": "known-northstar-bank-account", "reference": "AUGUST SOFTWARE", "description": "DOMESTIC WIRE" },
+    { "provider": "qonto", "accountId": "qonto-eur", "providerTransactionId": "q_001", "status": "completed", "direction": "credit", "amountCents": 730000, "currency": "EUR", "bookedAt": "2026-08-07T11:00:00Z", "senderName": "ORBIT AI LTD", "reference": "LAG-2026-1901", "description": "Transfer", "note": "invoice Aug" },
+    { "provider": "qonto", "accountId": "qonto-eur", "providerTransactionId": "q_002", "status": "completed", "direction": "credit", "amountCents": 725000, "currency": "EUR", "bookedAt": "2026-08-08T11:00:00Z", "senderName": "HELIOS CLOUD", "reference": "JULY AND AUGUST", "description": "SEPA transfer" },
+    { "provider": "mercury", "accountId": "mercury-main", "providerTransactionId": "m_003", "status": "posted", "direction": "credit", "amountCents": 480000, "currency": "USD", "bookedAt": "2026-08-09T10:00:00Z", "senderName": "WIRE TRANSFER", "reference": "SERVICES", "description": "WIRE INCOMING" },
+    { "provider": "mercury", "accountId": "mercury-main", "providerTransactionId": "m_004", "status": "posted", "direction": "credit", "amountCents": 450000, "currency": "USD", "bookedAt": "2026-08-10T10:00:00Z", "senderName": "VECTOR DB", "reference": "PART PAYMENT", "description": "ACH CREDIT" }
+  ]
+}
