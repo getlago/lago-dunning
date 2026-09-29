@@ -19,7 +19,7 @@ function setup(t) {
   return { store, service, payments };
 }
 
-const invoice = { id: 'inv1', number: 'LAG-1', customerId: 'cus1', customerName: 'Acme', currency: 'USD', totalAmountCents: 10000, remainingAmountCents: 10000, paymentStatus: 'pending', issuedAt: '2026-08-01' };
+const invoice = { id: 'inv1', number: 'LAG-1', customerId: 'cus1', customerName: 'Acme', currency: 'USD', totalAmountCents: 10000, remainingAmountCents: 10000, status: 'finalized', paymentStatus: 'pending', issuedAt: '2026-08-01' };
 const transfer = { provider: 'mercury', accountId: 'acc1', providerTransactionId: 'txn1', status: 'posted', direction: 'credit', amountCents: 10000, currency: 'USD', bookedAt: '2026-08-10', senderName: 'Acme', reference: 'LAG-1' };
 
 test('rejected matches stay rejected after reimport, changed balances, and database reopen', async (t) => {
@@ -413,4 +413,17 @@ test('live split execution is blocked until Lago exposes one atomic command', as
     actor: 'tester', execute: true
   }), /atomic Lago allocation command/);
   assert.equal(writes.length, 0);
+});
+
+test('only finalized Lago invoices can be matched or allocated', async (t) => {
+  const { store, service } = setup(t);
+  for (const status of ['draft', 'voided', 'failed', 'pending']) {
+    store.upsertInvoice({ ...invoice, id: `inv-${status}`, number: `LAG-${status}`, status });
+  }
+  assert.deepEqual(store.getOpenInvoices(), []);
+  const id = service.ingestTransfer({ ...transfer, reference: 'LAG-draft' });
+  assert.deepEqual(store.listProposals(id), []);
+  await assert.rejects(service.approve({ transferId: id, allocations: [{ invoiceId: 'inv-draft', amountCents: 10000 }], actor: 'reviewer' }), /not open/);
+  store.upsertInvoice(invoice);
+  assert.deepEqual(store.getOpenInvoices().map((item) => item.id), ['inv1']);
 });

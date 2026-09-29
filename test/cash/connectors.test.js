@@ -57,7 +57,7 @@ test('normalizes Ramp Treasury credit amounts in minor units', () => {
 test('normalizes Lago remaining balance and customer', () => {
   const result = normalizeLagoInvoice({
     lago_id: 'i1', number: 'LAG-1', lago_customer_id: 'c1', total_amount_cents: 10000,
-    paid_amount_cents: 2500, currency: 'USD', payment_status: 'pending', issuing_date: '2026-08-01',
+    total_paid_amount_cents: 2500, total_due_amount_cents: 7500, currency: 'USD', payment_status: 'pending', issuing_date: '2026-08-01',
     customer: { name: 'Acme', external_salesforce_id: '001SF' }
   });
   assert.equal(result.remainingAmountCents, 7500);
@@ -155,10 +155,10 @@ test('Ramp Treasury polling follows opaque page cursors', async () => {
   assert.match(urls[1], /start=opaque/);
 });
 
-test('Lago sync derives remaining invoice balance from succeeded payments', async () => {
+test('Lago sync takes the remaining invoice balance from total_due_amount_cents', async () => {
   const connector = new LagoConnector({ baseUrl: 'https://lago.test/api/v1', apiKey: 'key' }, async (url) => {
     const parsed = new URL(url);
-    if (parsed.pathname.endsWith('/invoices')) return { invoices: [{ lago_id: 'i1', number: 'LAG-1', lago_customer_id: 'c1', total_amount_cents: 10000, currency: 'USD', payment_status: 'pending', issuing_date: '2026-08-01', customer: { name: 'Acme' } }], meta: {} };
+    if (parsed.pathname.endsWith('/invoices')) return { invoices: [{ lago_id: 'i1', number: 'LAG-1', lago_customer_id: 'c1', total_amount_cents: 10000, total_paid_amount_cents: 2500, total_due_amount_cents: 7500, currency: 'USD', payment_status: 'pending', issuing_date: '2026-08-01', customer: { name: 'Acme' } }], meta: {} };
     if (parsed.pathname.endsWith('/payments')) return { payments: [{ amount_cents: 2500, payment_status: 'succeeded' }, { amount_cents: 1000, payment_status: 'failed' }] };
     throw new Error(`Unexpected URL: ${url}`);
   });

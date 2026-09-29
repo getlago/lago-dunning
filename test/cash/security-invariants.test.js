@@ -12,7 +12,7 @@ import { ReconciliationService } from '../../src/cash/service.js';
 
 const invoice = (id = 'inv1', customerId = 'cus1', amount = 10000) => ({
   id, number: `LAG-${id}`, customerId, customerName: customerId, currency: 'USD',
-  totalAmountCents: amount, remainingAmountCents: amount, paymentStatus: 'pending', issuedAt: '2026-08-01'
+  totalAmountCents: amount, remainingAmountCents: amount, status: 'finalized', paymentStatus: 'pending', issuedAt: '2026-08-01'
 });
 const transfer = (id = 'txn1', amount = 10000, status = 'posted') => ({
   provider: 'brex', accountId: 'cash1', providerTransactionId: id, status, direction: 'credit',

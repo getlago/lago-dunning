@@ -8,7 +8,7 @@ import { AgentWorker } from '../../src/cash/agent/worker.js';
 import { ReconciliationStore } from '../../src/cash/db.js';
 import { ReconciliationService } from '../../src/cash/service.js';
 
-const invoice = { id: 'inv1', number: 'LAG-1', customerId: 'cus1', customerName: 'Acme France', currency: 'USD', totalAmountCents: 10000, remainingAmountCents: 10000, paymentStatus: 'pending', issuedAt: '2026-08-01' };
+const invoice = { id: 'inv1', number: 'LAG-1', customerId: 'cus1', customerName: 'Acme France', currency: 'USD', totalAmountCents: 10000, remainingAmountCents: 10000, status: 'finalized', paymentStatus: 'pending', issuedAt: '2026-08-01' };
 const transfer = { provider: 'mercury', accountId: 'acc1', providerTransactionId: 'txn1', status: 'posted', direction: 'credit', amountCents: 10000, currency: 'USD', bookedAt: '2026-08-10', senderName: 'Acme France', reference: 'LAG-1' };
 
 function setup(t, overrides = {}, agentConfig = {}) {

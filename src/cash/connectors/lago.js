@@ -2,10 +2,6 @@ import { requestJson, required } from './http.js';
 
 export function normalizeLagoInvoice(raw, payments = []) {
   const customer = raw.customer ?? {};
-  const total = Number(raw.total_amount_cents ?? 0);
-  const paid = Number(raw.total_paid_amount_cents ?? raw.paid_amount_cents ?? payments
-    .filter((payment) => payment.payment_status === 'succeeded' || String(payment.status).toLowerCase() === 'completed')
-    .reduce((sum, payment) => sum + Number(payment.amount_cents ?? 0), 0));
   const personalName = [customer.firstname, customer.lastname].filter(Boolean).join(' ');
   return {
     id: raw.lago_id,
@@ -15,8 +11,8 @@ export function normalizeLagoInvoice(raw, payments = []) {
     customerName: (customer.name ?? personalName) || customer.external_id || 'Unknown customer',
     customerLegalName: customer.legal_name,
     currency: raw.currency,
-    totalAmountCents: total,
-    remainingAmountCents: Number(raw.remaining_amount_cents ?? Math.max(0, total - paid - Number(raw.credit_notes_amount_cents ?? 0))),
+    totalAmountCents: Number(raw.total_amount_cents ?? 0),
+    remainingAmountCents: Number(raw.total_due_amount_cents ?? 0),
     paymentStatus: raw.payment_status,
     issuedAt: raw.issuing_date ?? raw.created_at,
     raw,

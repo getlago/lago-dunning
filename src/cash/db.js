@@ -693,7 +693,7 @@ export class ReconciliationStore {
   }
 
   getOpenInvoices() {
-    return this.db.prepare(`SELECT * FROM invoices WHERE payment_status != 'succeeded' AND remaining_amount_cents > 0`).all().map(mapInvoice);
+    return this.db.prepare(`SELECT * FROM invoices WHERE json_extract(raw_json, '$.status') = 'finalized' AND payment_status != 'succeeded' AND remaining_amount_cents > 0`).all().map(mapInvoice);
   }
 
   listInvoices() { return this.db.prepare('SELECT * FROM invoices ORDER BY issued_at DESC').all().map(mapInvoice); }

@@ -53,7 +53,7 @@ try {
 
 function invoice(id, number, customerName, amountCents) {
   const customerId = id === 'parent' ? 'parent-customer' : id.startsWith('split') ? 'helios' : `${id}-customer`;
-  return { id: `inv-${id}`, number, customerId, customerName, currency: 'USD', totalAmountCents: amountCents, remainingAmountCents: amountCents, paymentStatus: 'pending', issuedAt: '2026-08-01' };
+  return { id: `inv-${id}`, number, customerId, customerName, currency: 'USD', totalAmountCents: amountCents, remainingAmountCents: amountCents, status: 'finalized', paymentStatus: 'pending', issuedAt: '2026-08-01' };
 }
 
 function transfer(id, amountCents, senderName, reference, overrides = {}) {
