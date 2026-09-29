@@ -207,7 +207,7 @@ export class ReconciliationService {
   }
 
   async approve({ transferId, proposalId = null, allocations: customAllocations = null,
-    adjustments: customAdjustments = null, actor, note, rememberIdentity = false, execute = false }) {
+    adjustments: customAdjustments = null, actor, note, rememberIdentity = false, execute = false, confirmedDifferentPayment = false }) {
     const transfer = this.store.getTransfer(transferId);
     const proposal = proposalId ? this.store.getProposal(proposalId) : null;
     if (!transfer || (proposalId && (!proposal || proposal.transferId !== transferId))) throw new Error('Invalid transfer or proposal');
@@ -217,6 +217,14 @@ export class ReconciliationService {
     const allocations = proposal?.allocations ?? customAllocations ?? [];
     const adjustments = proposal?.adjustments ?? customAdjustments ?? [];
     const allocatedAmountCents = this.validateAllocations(transfer, allocations, adjustments);
+    const lookalike = this.store.findAppliedLookalikeReceipt(transferId);
+    if (lookalike && !confirmedDifferentPayment) {
+      const format = new Intl.NumberFormat('en', { style: 'currency', currency: lookalike.currency });
+      const amount = format.format(lookalike.amountCents / 10 ** format.resolvedOptions().maximumFractionDigits);
+      throw Object.assign(new Error(`A payment of ${amount} on ${lookalike.receivedOn} from ${lookalike.sourceSystem} was already applied${lookalike.invoiceNumber ? ` to ${lookalike.invoiceNumber}` : ''}. This looks like the same money.`),
+        { status: 409, code: 'possible_duplicate' });
+    }
+    if (lookalike) this.store.audit('possible_duplicate_confirmed', 'cash_receipt', String(transferId), actor, { lookalikeReceiptId: lookalike.id });
     if (execute && !this.dryRun && (allocations.length > 1 || adjustments.length)) {
       throw Object.assign(new Error('Live split or adjustment execution requires one atomic Lago allocation command for cash application'), { status: 409 });
     }

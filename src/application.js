@@ -234,10 +234,10 @@ export class Application {
   }
   async review(payload) {
     return this.exclusive(async()=>{
-      const {action,transferId,proposalId,allocations,rememberIdentity=false,execute=false,note}=payload;
+      const {action,transferId,proposalId,allocations,rememberIdentity=false,execute=false,note,confirmedDifferentPayment=false}=payload;
       if(execute&&!this.config.allowLive) throw Object.assign(new Error('Live payment recording is disabled.'),{status:403});
       let result;
-      if(action==='approve') result=await this.service.approve({transferId,proposalId,allocations,actor:'workspace-operator',rememberIdentity,execute:execute||this.config.mode==='demo',note});
+      if(action==='approve') result=await this.service.approve({transferId,proposalId,allocations,actor:'workspace-operator',rememberIdentity,confirmedDifferentPayment,execute:execute||this.config.mode==='demo',note});
       else if(action==='reject') result=this.service.reject({transferId,proposalId,actor:'workspace-operator',note});
       else if(action==='hold') result=this.service.hold({transferId,actor:'workspace-operator',note});
       else throw Object.assign(new Error('Choose approve, reject or hold'),{status:400});

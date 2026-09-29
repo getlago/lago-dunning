@@ -247,7 +247,7 @@ export function createServer(config=loadConfig(),{callModel=pythonCall}={}) {
         return fs.createReadStream(path.join(ROOT,'public',file)).pipe(res);
       }
       return json(res,404,{error:'Not found'});
-    } catch(error) {json(res,error.status??400,{error:error.message,...(error.code?.startsWith('model_')?{code:error.code}:{})});}
+    } catch(error) {json(res,error.status??400,{error:error.message,...(error.code?.startsWith('model_')||error.code==='possible_duplicate'?{code:error.code}:{})});}
   });
   server.requestTimeout=240000;
   return {server,store,app,scheduler,getSandbox,

@@ -1304,6 +1304,23 @@ export class ReconciliationStore {
     return this.db.prepare('SELECT * FROM cash_application_adjustments WHERE receipt_id = ? ORDER BY id').all(receiptId).map(mapAdjustment);
   }
 
+  // The same money seen through another source (e.g. a Qonto sync and a CSV export of that account)
+  // gets a second receipt. Find one that is already applied: same amount, currency and day.
+  findAppliedLookalikeReceipt(receiptId) {
+    return this.db.prepare(`SELECT other.id, other.source_system sourceSystem, other.gross_amount_cents amountCents,
+        other.currency, substr(other.received_at, 1, 10) receivedOn, invoice.number invoiceNumber
+      FROM cash_receipts receipt
+      JOIN cash_receipts other ON other.id != receipt.id AND other.currency = receipt.currency
+        AND other.gross_amount_cents = receipt.gross_amount_cents
+        AND substr(other.received_at, 1, 10) = substr(receipt.received_at, 1, 10)
+        AND other.status != 'reversed'
+        AND NOT (other.source_system = receipt.source_system AND other.source_account_id = receipt.source_account_id)
+      JOIN cash_allocations allocation ON allocation.receipt_id = other.id
+        AND allocation.status IN ('approved', 'executed', 'confirmed', 'reversal_required')
+      LEFT JOIN invoices invoice ON invoice.id = allocation.invoice_id
+      WHERE receipt.id = ? LIMIT 1`).get(receiptId) ?? null;
+  }
+
   getReceiptCommittedAmount(receiptId) {
     const row = this.db.prepare(`SELECT COALESCE(SUM(amount_cents), 0) amount
       FROM cash_allocations WHERE receipt_id=? AND status IN ('approved', 'executed', 'confirmed', 'reversal_required')`).get(receiptId);

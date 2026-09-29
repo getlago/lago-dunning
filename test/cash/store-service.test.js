@@ -450,3 +450,33 @@ test('two partial allocations of one receipt to one invoice both reach Lago', as
   assert.deepEqual(lagoPayments.map((p) => p.amountCents), [600, 600]);
   assert.notEqual(lagoPayments[0].reference, lagoPayments[1].reference);
 });
+
+test('the same money from a second source is stopped before it is applied again', async (t) => {
+  const { store, service } = setup(t);
+  store.upsertInvoice({ ...invoice, totalAmountCents: 5000, remainingAmountCents: 5000 });
+  store.upsertInvoice({ ...invoice, id: 'inv2', number: 'LAG-2', totalAmountCents: 5000, remainingAmountCents: 5000 });
+  const fromQonto = service.ingestTransfer({ ...transfer, provider: 'qonto', accountId: 'main', providerTransactionId: 'q-1', amountCents: 5000, bookedAt: '2026-09-01T09:12:00Z' });
+  service.importStatementFile({ content: 'id,amount,currency,booked_at,sender_name,reference\nrow-77,50.00,USD,2026-09-01,Acme,LAG-2', sourceSystem: 'qonto_export', accountId: 'main' }, 'reviewer');
+  const fromCsv = store.listTransfers().find((item) => item.id !== fromQonto).id;
+  await service.approve({ transferId: fromQonto, allocations: [{ invoiceId: 'inv1', amountCents: 5000 }], actor: 'reviewer' });
+  await assert.rejects(
+    service.approve({ transferId: fromCsv, allocations: [{ invoiceId: 'inv2', amountCents: 5000 }], actor: 'reviewer' }),
+    (error) => error.code === 'possible_duplicate' && error.status === 409 && /\$50\.00 on 2026-09-01 from qonto was already applied to LAG-1/.test(error.message)
+  );
+  assert.equal(store.getReceiptCommittedAmount(fromCsv), 0);
+  await service.approve({ transferId: fromCsv, allocations: [{ invoiceId: 'inv2', amountCents: 5000 }], actor: 'reviewer', confirmedDifferentPayment: true });
+  assert.equal(store.getReceiptCommittedAmount(fromCsv), 5000);
+  const audit = store.db.prepare(`SELECT actor, detail_json FROM audit_log WHERE event_type='possible_duplicate_confirmed'`).all();
+  assert.deepEqual(audit.map((row) => [row.actor, JSON.parse(row.detail_json).lookalikeReceiptId]), [['reviewer', fromQonto]]);
+});
+
+test('two same-day payments of the same amount from one source are not flagged', async (t) => {
+  const { store, service } = setup(t);
+  store.upsertInvoice({ ...invoice, totalAmountCents: 5000, remainingAmountCents: 5000 });
+  store.upsertInvoice({ ...invoice, id: 'inv2', number: 'LAG-2', totalAmountCents: 5000, remainingAmountCents: 5000 });
+  const first = service.ingestTransfer({ ...transfer, providerTransactionId: 'same-1', amountCents: 5000 });
+  const second = service.ingestTransfer({ ...transfer, providerTransactionId: 'same-2', amountCents: 5000 });
+  await service.approve({ transferId: first, allocations: [{ invoiceId: 'inv1', amountCents: 5000 }], actor: 'reviewer' });
+  await service.approve({ transferId: second, allocations: [{ invoiceId: 'inv2', amountCents: 5000 }], actor: 'reviewer' });
+  assert.equal(store.getReceiptCommittedAmount(second), 5000);
+});

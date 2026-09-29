@@ -34,6 +34,8 @@ function toast(text){const el=document.querySelector('#toast');el.textContent=te
 async function api(url,data,method=data===undefined?'GET':'POST') {
   const response=await fetch(url,{method,headers:{'content-type':'application/json','x-csrf-token':state.csrf??'','x-admin-key':sessionStorage.getItem('lago-key')??''},...(data===undefined?{}:{body:JSON.stringify(data)})});
   const value=await response.json();
+  // A payment that looks like one already applied from another source needs an explicit yes.
+  if(value.code==='possible_duplicate'&&data&&!data.confirmedDifferentPayment&&confirm(`${value.error}\n\nApprove anyway?`)) return api(url,{...data,confirmedDifferentPayment:true},method);
   if(!response.ok) throw Object.assign(new Error(value.error??value.result?.error??`Request failed (${response.status})`),{status:response.status,value});
   return value;
 }
