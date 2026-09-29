@@ -40,6 +40,14 @@ test('a configured public origin behind a trusted proxy is accepted; everything 
   assert.throws(()=>loadConfig({APP_MODE:'demo',PUBLIC_ORIGIN:'http://demo.example'}),/plain https origins/);
   assert.throws(()=>loadConfig({APP_MODE:'demo',PUBLIC_ORIGIN:'https://demo.example/app'}),/plain https origins/);
 });
+test('a policy value that is not a whole number stops the app instead of switching its limit off',()=>{
+  for(const [name,value] of [['MATERIALITY_CENTS','1_000_000'],['MAX_TOUCHES_PER_WEEK','two'],['MAX_SOURCE_AGE_MINUTES','15m'],['TERMINAL_TOUCHES','2.5'],['DEDUP_WINDOW_HOURS','-1'],['RETRY_AUTO_CAP_CENTS','1e5']])
+    assert.throws(()=>loadConfig({APP_MODE:'demo',[name]:value}),new RegExp(`${name} must be a whole number, got ${value.replace('.','\\.')}`));
+  const config=loadConfig({APP_MODE:'demo',MATERIALITY_CENTS:'1000000',MAX_TOUCHES_PER_WEEK:'2',DEDUP_WINDOW_HOURS:'48',TERMINAL_TOUCHES:'3',MAX_SOURCE_AGE_MINUTES:'15',RETRY_AUTO_CAP_CENTS:'200000'});
+  assert.deepEqual([config.policy.materiality,config.policy.weeklyCap,config.policy.dedupHours,config.policy.terminalTouches,config.maxSourceAgeMs,config.policy.retryCap],[1000000,2,48,3,900000,200000]);
+  const defaults=loadConfig({APP_MODE:'demo',MATERIALITY_CENTS:''});
+  assert.equal(defaults.policy.materiality,1000000);assert.equal(defaults.policy.weeklyCap,2);
+});
 test('local access cannot start on a network interface',()=>{
   const config=loadConfig({APP_ACCESS_MODE:'local',APP_MODE:'connected'});
   assert.equal(config.host,'127.0.0.1');

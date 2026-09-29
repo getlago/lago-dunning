@@ -5,6 +5,13 @@ import { loadConfig as cashConfig } from './cash/config.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export function loadConfig(env = process.env) {
+  // A typo must stop the app: a value that is not a number would silently switch its limit off.
+  const whole = (name, fallback) => {
+    const value = env[name];
+    if (value == null || value === '') return fallback;
+    if (!/^\d+$/.test(value.trim())) throw new Error(`${name} must be a whole number, got ${value}`);
+    return Number(value);
+  };
   const mode = env.APP_MODE ?? 'connected';
   if (!['demo', 'connected'].includes(mode)) throw new Error('APP_MODE must be demo or connected');
   const config = cashConfig({ cwd: ROOT, env: { ...env, DRY_RUN: 'true', HOST: '127.0.0.1' } });
@@ -50,12 +57,12 @@ export function loadConfig(env = process.env) {
     config.qontoOAuth = {...config.qontoOAuth, environment: 'production', clientId: '', clientSecret: '', organizationId: ''};
   }
   config.requiredSources = (env.REQUIRED_PAYMENT_SOURCES ?? 'lago').split(',').map(x => x.trim()).filter(Boolean);
-  config.maxSourceAgeMs = Number(env.MAX_SOURCE_AGE_MINUTES ?? 15) * 60_000;
+  config.maxSourceAgeMs = whole('MAX_SOURCE_AGE_MINUTES', 15) * 60_000;
   config.timezone = env.APP_TIMEZONE ?? 'Europe/Paris';
   config.policy = {
-    weeklyCap: Number(env.MAX_TOUCHES_PER_WEEK ?? 2), dedupHours: Number(env.DEDUP_WINDOW_HOURS ?? 48),
-    terminalTouches: Number(env.TERMINAL_TOUCHES ?? 3), materiality: Number(env.MATERIALITY_CENTS ?? 1000000),materialityCurrency:env.MATERIALITY_CURRENCY??'EUR',
-    retryCap: Number(env.RETRY_AUTO_CAP_CENTS ?? 200000)
+    weeklyCap: whole('MAX_TOUCHES_PER_WEEK', 2), dedupHours: whole('DEDUP_WINDOW_HOURS', 48),
+    terminalTouches: whole('TERMINAL_TOUCHES', 3), materiality: whole('MATERIALITY_CENTS', 1000000),materialityCurrency:env.MATERIALITY_CURRENCY??'EUR',
+    retryCap: whole('RETRY_AUTO_CAP_CENTS', 200000)
   };
   const localPython = path.join(ROOT, '.venv/bin/python');
   config.python = env.PYTHON_PATH ?? (fs.existsSync(localPython) ? localPython : 'python3');
