@@ -5,9 +5,11 @@ import { createHash } from 'node:crypto';
 import { buildRepairPreview } from './repair-plans.js';
 import { parseStatementCsv } from './connectors/statement-file.js';
 
-export function lagoPaymentReference(transfer) {
+// One reference per approved decision: a retry of the same decision finds its payment,
+// while a second partial allocation of the same receipt gets its own.
+export function lagoPaymentReference(transfer, decisionId) {
   const provider = String(transfer.provider ?? 'cash').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12);
-  const source = `${transfer.provider}:${transfer.accountId}:${transfer.providerTransactionId}`;
+  const source = `${transfer.provider}:${transfer.accountId}:${transfer.providerTransactionId}:${decisionId}`;
   return `lgr:${provider}:${createHash('sha256').update(source).digest('hex').slice(0, 23)}`;
 }
 
@@ -338,7 +340,7 @@ export class ReconciliationService {
     }
     // Lago's existing manual-payment UI/API caps references at 40 characters.
     // The full source identity remains in our receipt/audit records.
-    const reference = lagoPaymentReference(transfer);
+    const reference = lagoPaymentReference(transfer, decisionId);
 
     const payments = [];
     try {

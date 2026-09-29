@@ -62,8 +62,9 @@ test('rejection hides existing duplicate suggestions and keeps other invoice com
 
 test('Lago payment references are deterministic and fit the current 40-character limit', () => {
   const long = { ...transfer, accountId: 'account-with-an-extremely-long-identifier', providerTransactionId: 'transaction-with-an-extremely-long-identifier' };
-  assert.equal(lagoPaymentReference(long), lagoPaymentReference(long));
-  assert(lagoPaymentReference(long).length <= 40);
+  assert.equal(lagoPaymentReference(long, 1), lagoPaymentReference(long, 1));
+  assert.notEqual(lagoPaymentReference(long, 1), lagoPaymentReference(long, 2));
+  assert(lagoPaymentReference(long, 999999999).length <= 40);
 });
 
 test('upsert is idempotent on provider, account, and transaction ID', (t) => {
@@ -132,7 +133,7 @@ test('live execution checks Lago for the bank reference before creating a paymen
   const liveService = new ReconciliationService({
     store, dryRun: false, mercury: {}, qonto: {},
     lago: {
-      findPaymentByReference: async () => ({ lago_id: 'existing', reference: lagoPaymentReference(transfer) }),
+      findPaymentByReference: async () => ({ lago_id: 'existing', reference: lagoPaymentReference(transfer, 1) }),
       createPayment: async (payload) => { calls.push(payload); return payload; }
     }
   });
@@ -426,4 +427,26 @@ test('only finalized Lago invoices can be matched or allocated', async (t) => {
   await assert.rejects(service.approve({ transferId: id, allocations: [{ invoiceId: 'inv-draft', amountCents: 10000 }], actor: 'reviewer' }), /not open/);
   store.upsertInvoice(invoice);
   assert.deepEqual(store.getOpenInvoices().map((item) => item.id), ['inv1']);
+});
+
+test('two partial allocations of one receipt to one invoice both reach Lago', async (t) => {
+  const { store } = setup(t);
+  store.upsertInvoice({ ...invoice, totalAmountCents: 1200, remainingAmountCents: 1200 });
+  const lagoPayments = [];
+  const liveService = new ReconciliationService({
+    store, dryRun: false, mercury: {}, qonto: {},
+    lago: {
+      findPaymentByReference: async (invoiceId, reference) => lagoPayments.find((p) => p.invoiceId === invoiceId && p.reference === reference) ?? null,
+      getInvoice: async () => ({ paymentStatus: 'pending', remainingAmountCents: 1200 - lagoPayments.reduce((sum, p) => sum + p.amountCents, 0) }),
+      createPayment: async (payload) => { lagoPayments.push(payload); return payload; }
+    }
+  });
+  const transferId = liveService.ingestTransfer({ ...transfer, amountCents: 1200 });
+  const allocations = [{ invoiceId: 'inv1', amountCents: 600 }];
+  const first = await liveService.approve({ transferId, allocations, actor: 'tester', execute: true });
+  const second = await liveService.approve({ transferId, allocations, actor: 'tester', execute: true });
+  assert.equal(first.payments[0].idempotentReplay, undefined);
+  assert.equal(second.payments[0].idempotentReplay, undefined);
+  assert.deepEqual(lagoPayments.map((p) => p.amountCents), [600, 600]);
+  assert.notEqual(lagoPayments[0].reference, lagoPayments[1].reference);
 });
