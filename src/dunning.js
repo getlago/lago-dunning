@@ -77,7 +77,8 @@ export function planDunning(store,config,now=new Date(),{ignoreActionId=null}={}
   const today=now.toISOString().slice(0,10);
   for(const invoice of all) {
     const raw=invoice.raw??{};
-    if(raw.status!=='finalized'||!raw.payment_due_date||raw.payment_due_date>=today||invoice.remainingAmountCents<=0||invoice.paymentStatus==='succeeded') continue;
+    // Self-billed invoices are what we owe a partner: never chase them (Lago's own dunning skips them too).
+    if(raw.status!=='finalized'||raw.self_billed||!raw.payment_due_date||raw.payment_due_date>=today||invoice.remainingAmountCents<=0||invoice.paymentStatus==='succeeded') continue;
     const key=`${invoice.customerId}:${invoice.currency}`;
     if(!groups.has(key)) groups.set(key,[]);
     groups.get(key).push(invoice);
