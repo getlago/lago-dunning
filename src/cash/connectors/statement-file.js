@@ -29,12 +29,17 @@ export function parseStatementCsv(content, { sourceSystem = 'statement_csv', acc
     const sourceId = String(raw[columns.id] ?? '').trim();
     const currency = String(raw[columns.currency] ?? '').trim().toUpperCase();
     const bookedAt = String(raw[columns.bookedAt] ?? '').trim();
-    const numericAmount = Number(String(raw[columns.amount] ?? '').replaceAll(',', ''));
+    const amountText = String(raw[columns.amount] ?? '').trim();
+    const numericAmount = Number(amountText.replaceAll(',', ''));
     if (!sourceId) throw new Error(`Statement CSV row ${index + 2} has no stable source ID`);
     if (seenSourceIds.has(sourceId)) throw new Error(`Statement CSV contains duplicate source ID: ${sourceId}`);
     seenSourceIds.add(sourceId);
     if (!/^[A-Z]{3}$/.test(currency)) throw new Error(`Statement CSV row ${index + 2} has an invalid currency`);
     if (!bookedAt || Number.isNaN(Date.parse(bookedAt))) throw new Error(`Statement CSV row ${index + 2} has an invalid booked date`);
+    // Commas are only accepted as thousands separators: "1234,56" or "1.234,56" would be read as another amount.
+    if (!/^-?(\d+|\d{1,3}(,\d{3})+)(\.\d+)?$/.test(amountText)) {
+      throw new Error(`Statement CSV row ${index + 2} has an amount we can't read safely: ${amountText}. Use a dot for decimals.`);
+    }
     if (!Number.isFinite(numericAmount) || numericAmount === 0) throw new Error(`Statement CSV row ${index + 2} has an invalid amount`);
     const decimals = new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits;
     const amountCents = amountUnit === 'minor' ? numericAmount : Math.round(numericAmount * 10 ** decimals);

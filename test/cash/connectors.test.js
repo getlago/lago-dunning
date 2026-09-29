@@ -209,6 +209,19 @@ test('statement CSV import supports quoted fields and explicit account identity'
   ), /cannot impersonate a live provider/);
 });
 
+test('statement CSV refuses comma-decimal amounts instead of mis-scaling them', () => {
+  const csv = (amount) => `id,amount,currency,booked_at\nwire-1,${amount},EUR,2026-08-10\n`;
+  const cents = (amount, options = {}) => parseStatementCsv(csv(amount), { accountId: 'bank-account-1', ...options })[0].amountCents;
+  assert.equal(cents('"1,234.56"'), 123456);
+  assert.equal(cents('1234.56'), 123456);
+  assert.equal(cents('100.00'), 10000);
+  assert.equal(cents('-50.25'), 5025);
+  assert.equal(cents('12345', { amountUnit: 'minor' }), 12345);
+  for (const amount of ['"1234,56"', '"1.234,56"', '"12,34"', '1e5', '12 EUR']) {
+    assert.throws(() => parseStatementCsv(csv(amount), { accountId: 'bank-account-1' }), /Row 2 has an amount we can't read safely: .*Use a dot for decimals/i);
+  }
+});
+
 // Shape per docs.mercury.com: flat counterpartyName, no counterparty object, no
 // currency or direction field, counterparty account number only inside details.
 // The nested shape above is kept for backward compatibility, but Mercury sends this one.
