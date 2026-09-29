@@ -1,0 +1,16 @@
+{
+  "name": "lago-receivables",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "One workspace for collection, cash reconciliation, and agent schedules.",
+  "engines": { "node": ">=22.16" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "dev": "node --env-file-if-exists=.env --watch src/server.js",
+    "test": "node --test test/*.test.js test/cash/*.test.js",
+    "check": "node --check public/app.js && node --check src/server.js && npm test && node src/cash/evaluate-agent.js",
+    "setup:ai": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+  }
+}
