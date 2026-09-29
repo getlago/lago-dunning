@@ -72,7 +72,7 @@ export function createServer(config=loadConfig(),{callModel=pythonCall}={}) {
       }
       if(url.pathname.startsWith('/api/')) {
         const isAdmin=config.accessMode==='local'||config.adminKeys.some(key=>equal(key,req.headers['x-admin-key']));
-        const keys=[...config.adminKeys,...(config.workspaceKeys??[])];
+        const keys=config.adminKeys;
         if(config.accessMode!=='local'&&keys.length&&!keys.some(key=>equal(key,req.headers['x-admin-key']))) return json(res,401,{error:'Enter your workspace access key to continue.'});
         if(url.pathname.startsWith('/api/admin/')&&!isAdmin) return json(res,403,{error:'Administrator access is required.'});
         if(req.method!=='GET'&&!equal(req.headers['x-csrf-token'],csrf)) return json(res,403,{error:'Refresh the app to renew your session.'});

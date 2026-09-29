@@ -15,8 +15,7 @@ export function loadConfig(env = process.env) {
   config.allowLive = mode === 'connected' && env.ALLOW_LIVE_ACTIONS === 'true';
   config.dryRun = !config.allowLive;
   config.adminKeys = (env.ADMIN_KEYS ?? '').split(',').map(x => x.trim()).filter(Boolean);
-  config.workspaceKeys = (env.WORKSPACE_KEYS ?? '').split(',').map(x => x.trim()).filter(Boolean);
-  config.accessMode = env.APP_ACCESS_MODE ?? (config.adminKeys.length || config.workspaceKeys.length ? 'key' : 'local');
+  config.accessMode = env.APP_ACCESS_MODE ?? (config.adminKeys.length ? 'key' : 'local');
   if (!['local', 'key'].includes(config.accessMode)) throw new Error('APP_ACCESS_MODE must be local or key');
   if (config.accessMode === 'key' && !config.adminKeys.length) throw new Error('Set ADMIN_KEYS when APP_ACCESS_MODE=key');
   config.providerSettingsPath = env.PROVIDER_SETTINGS_PATH ?? path.join(ROOT, '.secrets');

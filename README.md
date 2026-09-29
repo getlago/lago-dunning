@@ -173,9 +173,8 @@ the provider's context on the next message, while preserving visible conversatio
 Each successful assistant message records its actual model and settings revision.
 
 Lago continues to use `LAGO_API_KEY` on the server. No Lago sign-in or webhook is created by
-saving agent settings. This remains a single-company local application. Configured workspace
-members in key mode can inspect settings; only administrators can change them. Local access
-can configure its assistant and connections directly.
+saving agent settings. This remains a single-company local application. Every key in `ADMIN_KEYS` is an
+administrator. Local access can configure its assistant and connections directly.
 
 ## Verify
 

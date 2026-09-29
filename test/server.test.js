@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createServer } from '../src/server.js';
 import { loadConfig } from '../src/config.js';
 import { randomBytes } from 'node:crypto';
-async function setup(t,overrides={},dependencies={}){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'receivables-api-'));const runtime=createServer({...loadConfig({APP_MODE:'demo'}),port:0,databasePath:path.join(dir,'test.db'),providerSettingsPath:path.join(dir,'.secrets'),modelReady:false,...overrides,port:0,databasePath:path.join(dir,'test.db'),providerSettingsPath:path.join(dir,'.secrets'),accessMode:overrides.accessMode??((overrides.adminKeys?.length||overrides.workspaceKeys?.length)?'key':'local')},dependencies);const origin=await runtime.start();runtime.scheduler.stop();t.after(async()=>{await runtime.close();fs.rmSync(dir,{recursive:true,force:true});});const call=(url,body,headers={})=>fetch(origin+url,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});return {...runtime,origin,call};}
+async function setup(t,overrides={},dependencies={}){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'receivables-api-'));const runtime=createServer({...loadConfig({APP_MODE:'demo'}),port:0,databasePath:path.join(dir,'test.db'),providerSettingsPath:path.join(dir,'.secrets'),modelReady:false,...overrides,port:0,databasePath:path.join(dir,'test.db'),providerSettingsPath:path.join(dir,'.secrets'),accessMode:overrides.accessMode??(overrides.adminKeys?.length?'key':'local')},dependencies);const origin=await runtime.start();runtime.scheduler.stop();t.after(async()=>{await runtime.close();fs.rmSync(dir,{recursive:true,force:true});});const call=(url,body,headers={})=>fetch(origin+url,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});return {...runtime,origin,call};}
 const connectSmtp=app=>{app.email.write({host:'smtp.example.com',port:587,security:'starttls',username:'billing',password:'secret',from:'billing@example.com'});app.email.recordCheck();};
 test('workspace boots with correct demo collection holds and no secrets',async t=>{const {call}=await setup(t);const response=await call('/api/workspace');const data=await response.json();assert.equal(response.status,200);assert.equal(data.collection.rows.length,7);assert.equal(data.allowLive,false);assert(!JSON.stringify(data).includes('apiKey'));assert(!JSON.stringify(data).includes('AWS_BEARER'));});
 test('mutations require CSRF token and cross-origin requests are blocked',async t=>{const {call}=await setup(t);assert.equal((await call('/api/runs',{kind:'combined'})).status,403);assert.equal((await call('/api/session',undefined,{origin:'https://evil.example'})).status,403);assert.equal((await call('/api/session',undefined,{'x-forwarded-for':'192.0.2.1'})).status,403);});
@@ -81,13 +81,12 @@ test('local demo agent settings require CSRF and save a validated model without 
   const workspace=await(await call('/api/workspace')).json();assert.equal(workspace.modelName,'amazon.test:0');
   assert.deepEqual(app.config.lago,lago);assert.equal(workspace.agentSettings.revision,1);
 });
-test('members can read model selection but cannot discover models or change agent settings',async t=>{
-  const {call}=await setup(t,{adminKeys:['owner'],workspaceKeys:['member']});
-  const headers={'x-admin-key':'member'};const session=await(await call('/api/session',undefined,headers)).json();
-  assert.equal(session.canConfigureAgent,false);headers['x-csrf-token']=session.csrf;
-  assert.equal((await call('/api/agent/models',undefined,headers)).status,403);
-  assert.equal((await call('/api/agent/settings',{model:'test',instructions:'',revision:0},headers)).status,403);
-  assert.equal((await call('/api/workspace',undefined,headers)).status,200);
+test('member keys are not supported: a WORKSPACE_KEYS key cannot open the workspace',async t=>{
+  const {call}=await setup(t,{...loadConfig({APP_MODE:'demo',ADMIN_KEYS:'owner',WORKSPACE_KEYS:'member'}),modelReady:false});
+  assert.equal((await call('/api/session',undefined,{'x-admin-key':'member'})).status,401);
+  assert.equal((await call('/api/workspace',undefined,{'x-admin-key':'member'})).status,401);
+  const session=await(await call('/api/session',undefined,{'x-admin-key':'owner'})).json();
+  assert.equal(session.isAdmin,true);assert.equal(session.canConfigureAgent,true);
 });
 test('retention-policy rejection stays actionable and cannot change the saved model',async t=>{
   const {call,app}=await setup(t,{modelReady:true});
@@ -195,16 +194,6 @@ test('same host over a foreign protocol is not a valid API origin',async t=>{
   const {call,origin}=await setup(t);assert.equal((await call('/api/session',undefined,{origin:origin.replace('http:','https:')})).status,403);
 });
 
-test('workspace members cannot access administrator settings or sandbox endpoints',async t=>{
-  const {call}=await setup(t,{adminKeys:['owner-key'],workspaceKeys:['member-key']});
-  const member={'x-admin-key':'member-key'};
-  const session=await(await call('/api/session',undefined,member)).json();assert.equal(session.isAdmin,false);
-  member['x-csrf-token']=session.csrf;
-  assert.equal((await call('/api/workspace',undefined,member)).status,200);
-  assert.equal((await call('/api/admin/qonto',undefined,member)).status,403);
-  for(const route of ['settings','test/start','test/accounts','test/sync','test/disconnect'])assert.equal((await call('/api/admin/qonto/'+route,{},member)).status,403);
-  const normal=await(await call('/api/connections/qonto',undefined,member)).json();assert(!('missing'in normal));assert(!('redirectUri'in normal));
-});
 test('administrator can save isolated sandbox configuration and start Qonto login without an organisation ID',async t=>{
   const runtime=await setup(t,{adminKeys:['owner-key']});
   const {call,app,origin,store}=runtime;
@@ -232,17 +221,17 @@ test('administrator can save isolated sandbox configuration and start Qonto logi
 });
 
 test('SMTP settings require admin and CSRF, Gmail routes are absent and no send endpoint exists',async t=>{
-  const {app,call}=await setup(t,{adminKeys:['owner'],workspaceKeys:['member']});app.email.check=async()=>({verified:true});
-  const {csrf}=await(await call('/api/session',undefined,{'x-admin-key':'owner'})).json(),owner={'x-admin-key':'owner','x-csrf-token':csrf},member={'x-admin-key':'member','x-csrf-token':csrf};
+  const {app,call}=await setup(t,{adminKeys:['owner']});app.email.check=async()=>({verified:true});
+  const {csrf}=await(await call('/api/session',undefined,{'x-admin-key':'owner'})).json(),owner={'x-admin-key':'owner','x-csrf-token':csrf};
   const settings={host:'smtp.example.com',port:587,security:'starttls',username:'billing',password:'PRIVATE-smtp-secret',from:'billing@example.com'};
-  assert.equal((await call('/api/admin/email/settings',settings,member)).status,403);assert.equal((await call('/api/admin/email/settings',settings,{'x-admin-key':'owner'})).status,403);
+  assert.equal((await call('/api/admin/email/settings',settings,{'x-admin-key':'owner'})).status,403);
   assert.equal((await call('/api/admin/email/settings',settings,owner)).status,200);const snapshot=await(await call('/api/workspace',undefined,owner)).json();assert.equal(snapshot.email.state,'connected');assert(!JSON.stringify(snapshot).includes('PRIVATE-smtp-secret'));assert.equal(snapshot.gmail,undefined);
   for(const route of ['/api/connections/gmail/start','/api/email/send','/api/admin/email/send'])assert.equal((await call(route,{},owner)).status,404);
   const preview=await(await call('/api/runs',{kind:'combined',mode:'preview'},owner)).json();const draftRun=await(await call('/api/runs',{kind:'combined',mode:'drafts',previewId:preview.id},owner)).json();assert.equal(draftRun.status,'completed');assert(draftRun.result.collection.outcomes.every(o=>o.outcome==='drafted'));assert.equal(app.store.db.prepare('SELECT COUNT(*) AS count FROM email_drafts').get().count,3);
 });
 
 test('manual draft sends go only to the draft recipient and enforce SMTP check, admin, CSRF and duplicate protection',async t=>{
-  const {app,store,call}=await setup(t,{adminKeys:['owner'],workspaceKeys:['member']});
+  const {app,store,call}=await setup(t,{adminKeys:['owner']});
   // Transport and access-control coverage; invoice preflight is covered in customer-memory.test.js.
   app.preflightDraft=async()=>{};
   const run=store.startRun('combined','drafts','test'),draft=store.saveDraft(run,'customer@example.com','Reminder','Test content');
@@ -252,12 +241,12 @@ test('manual draft sends go only to the draft recipient and enforce SMTP check, 
   const unchecked=await call(route,{},owner);assert.equal(unchecked.status,409);assert.match((await unchecked.json()).error,/Set up and check SMTP/);assert.equal(store.draft(draft.id).status,'draft');assert.equal(calls,0);
   connectSmtp(app);
   assert.equal((await call(route,{}, {'x-admin-key':'owner'})).status,403);
-  assert.equal((await call(route,{}, {'x-admin-key':'member','x-csrf-token':csrf})).status,403);assert.equal(calls,0);
+  assert.equal(calls,0);
   const response=await call(route,{to:'other@example.com',cc:'other@example.com',bcc:'other@example.com'},owner),sent=await response.json();assert.equal(response.status,200);assert.equal(sent.recipient,'customer@example.com');assert.equal(sent.status,'accepted');
   assert.equal((await call(route,{},owner)).status,409);assert.equal(calls,1);assert.equal(store.draft(draft.id).recipient,'customer@example.com');
 });
 test('billing link refresh requires admin and CSRF, preserves reviewed text, and never sends',async t=>{
-  const {app,store,call}=await setup(t,{adminKeys:['owner'],workspaceKeys:['member']});
+  const {app,store,call}=await setup(t,{adminKeys:['owner']});
   const run=store.startRun('dunning','drafts','test');
   const draft=store.saveDraft(run,'test@example.com','Update card','Update here: https://billing.example/old',{customerExternalId:'customer-one',url:'https://billing.example/old',expiresAt:'2020-01-01'});
   app.email.send=()=>assert.fail('Refreshing must not send');let lookups=0;
@@ -265,7 +254,6 @@ test('billing link refresh requires admin and CSRF, preserves reviewed text, and
   const {csrf}=await(await call('/api/session',undefined,{'x-admin-key':'owner'})).json();
   const route=`/api/drafts/${draft.id}/refresh-link`;
   assert.equal((await call(route,{}, {'x-admin-key':'owner'})).status,403);
-  assert.equal((await call(route,{}, {'x-admin-key':'member','x-csrf-token':csrf})).status,403);
   assert.equal(lookups,0);
   const response=await call(route,{customerExternalId:'wrong-customer'},{'x-admin-key':'owner','x-csrf-token':csrf});
   assert.equal(response.status,200);const updated=await response.json();
@@ -301,13 +289,12 @@ test('pause and resume expose current customer state without sending a draft',as
 });
 
 test('customer history is readable, while review and draft changes require admin and CSRF',async t=>{
- const {app,store,call}=await setup(t,{adminKeys:['owner'],workspaceKeys:['member']});
+ const {app,store,call}=await setup(t,{adminKeys:['owner']});
  const run=await app.run('dunning','drafts','schedule'),draft=store.drafts()[0],customerId=store.actionForDraft(draft.id).customer_id;
  const {csrf}=await(await call('/api/session',undefined,{'x-admin-key':'owner'})).json();
- const owner={'x-admin-key':'owner','x-csrf-token':csrf},member={'x-admin-key':'member','x-csrf-token':csrf};
- assert.equal((await call(`/api/customers/${customerId}/history`,undefined,member)).status,200);
+ const owner={'x-admin-key':'owner','x-csrf-token':csrf};
+ assert.equal((await call(`/api/customers/${customerId}/history`,undefined,owner)).status,200);
  for(const route of [`/api/customers/${customerId}/review`,`/api/drafts/${draft.id}/discard`,`/api/drafts/${draft.id}/refresh`,`/api/drafts/${draft.id}/resolve`]){
-  assert.equal((await call(route,{note:'Reviewed'},member)).status,403);
   assert.equal((await call(route,{note:'Reviewed'},{'x-admin-key':'owner'})).status,403);
  }
  assert.equal((await call(`/api/customers/${customerId}/review`,{note:'Account owner checked'},owner)).status,200);
@@ -317,22 +304,20 @@ test('customer history is readable, while review and draft changes require admin
 });
 
 test('dunning settings save independently of AI availability and require admin and CSRF',async t=>{
- const {call}=await setup(t,{adminKeys:['admin'],workspaceKeys:['reader']});
+ const {call}=await setup(t,{adminKeys:['admin']});
  const headers={'x-admin-key':'admin'},session=await(await call('/api/session',undefined,headers)).json();
  const data={amount:'1234.56',currency:'EUR',revision:0};
  assert.equal((await call('/api/agent/dunning-settings',data,headers)).status,403);
- assert.equal((await call('/api/agent/dunning-settings',data,{'x-admin-key':'reader','x-csrf-token':session.csrf})).status,403);
  const saved=await call('/api/agent/dunning-settings',data,{...headers,'x-csrf-token':session.csrf});assert.equal(saved.status,200);assert.equal((await saved.json()).amountMinor,123456);
  assert.equal((await(await call('/api/workspace',undefined,headers)).json()).dunningSettings.amount,'1234.56');
  assert.equal((await call('/api/agent/dunning-settings',data,{...headers,'x-csrf-token':session.csrf})).status,409);
 });
 
 test('alert configuration requires admin and CSRF, hides the webhook and sends nothing on save',async t=>{
- const {call,app}=await setup(t,{adminKeys:['admin'],workspaceKeys:['reader']});
+ const {call,app}=await setup(t,{adminKeys:['admin']});
  app.alerts.fetcher=async()=>assert.fail('Saving must not post to Slack');
  const headers={'x-admin-key':'admin'},session=await(await call('/api/session',undefined,headers)).json();
  const data={enabled:true,channel:'slack',webhook:'https://hooks.slack.com/services/TEAM/BOT/secret',revision:0};
  assert.equal((await call('/api/agent/alerts',data,headers)).status,403);
- assert.equal((await call('/api/agent/alerts',data,{'x-admin-key':'reader','x-csrf-token':session.csrf})).status,403);
  const response=await call('/api/agent/alerts',data,{...headers,'x-csrf-token':session.csrf});assert.equal(response.status,200);assert(!(await response.text()).includes(data.webhook));
 });
